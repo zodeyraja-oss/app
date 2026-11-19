@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private owner-only user profile, PII, and Google-account synced preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "email": { "type": "string", "description": "User email address (owner-only PII)." },
+        "displayName": { "type": "string", "description": "Editable display name." },
+        "shareCode": { "type": "string", "description": "Short shareable KinChat invite code." },
+        "publicKeyBase64": { "type": "string", "description": "Base64 X.509 EC P-256 public identity key." },
+        "keyFingerprint": { "type": "string", "description": "SHA-256 fingerprint of the public key." },
+        "appColor": { "type": "string", "description": "Synced app accent color theme preset." },
+        "chatColor": { "type": "string", "description": "Synced chat bubble color theme preset." },
+        "themeMode": { "type": "string", "enum": ["SYSTEM", "DARK", "LIGHT"], "description": "Synced dark/light mode preference." },
+        "highContrast": { "type": "boolean", "description": "Synced high-contrast border toggle." },
+        "textSizePreset": { "type": "string", "enum": ["COMFORT", "LARGE", "EXTRA_LARGE"], "description": "Synced text scaling preset." },
+        "easyMode": { "type": "boolean", "description": "Synced simplified navigation toggle." },
+        "ttsVoice": { "type": "string", "description": "Synced Gemini TTS voice selection." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on create." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "email", "displayName", "shareCode", "publicKeyBase64", "keyFingerprint", "createdAt", "updatedAt"]
+    },
+    "InviteCode": {
+      "title": "InviteCode",
+      "description": "Zero-PII lookup record mapping a short invite code to public key info.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase UID." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "publicKeyBase64": { "type": "string", "description": "Base64 X.509 EC P-256 public identity key." },
+        "keyFingerprint": { "type": "string", "description": "SHA-256 fingerprint of the public key." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "displayName", "publicKeyBase64", "keyFingerprint", "updatedAt"]
+    },
+    "DirectoryEntry": {
+      "title": "DirectoryEntry",
+      "description": "Zero-PII peer discovery record keyed by hashed email or hashed name.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase UID." },
+        "displayName": { "type": "string", "description": "Public display name." },
+        "shareCode": { "type": "string", "description": "User shareable invite code." },
+        "publicKeyBase64": { "type": "string", "description": "Base64 X.509 EC P-256 public identity key." },
+        "keyFingerprint": { "type": "string", "description": "SHA-256 fingerprint of the public key." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "displayName", "shareCode", "publicKeyBase64", "keyFingerprint", "updatedAt"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "Owner-scoped saved contact with peer public key.",
+      "type": "object",
+      "properties": {
+        "contactUid": { "type": "string", "description": "Peer Firebase UID." },
+        "displayName": { "type": "string", "description": "Contact display name." },
+        "shareCode": { "type": "string", "description": "Peer invite code." },
+        "publicKeyBase64": { "type": "string", "description": "Peer Base64 EC P-256 public key." },
+        "keyFingerprint": { "type": "string", "description": "Peer key fingerprint." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": ["contactUid", "displayName", "shareCode", "publicKeyBase64", "keyFingerprint", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "End-to-end encrypted conversation metadata and wrapped room keys.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Conversation title." },
+        "chatType": { "type": "string", "enum": ["vault", "direct", "group"], "description": "Chat type." },
+        "creatorId": { "type": "string", "description": "UID of chat creator." },
+        "participantUids": { "type": "array", "description": "List of participant UIDs (max 20)." },
+        "wrappedKeys": { "type": "object", "description": "Map of participant UID to wrapped room AES key." },
+        "lastMessageCiphertext": { "type": "string", "description": "AES-GCM encrypted preview of last message." },
+        "lastMessageIv": { "type": "string", "description": "Base64 GCM IV for last message preview." },
+        "lastMessageType": { "type": "string", "enum": ["none", "text", "image", "location", "youtube", "voice", "call"], "description": "Type of last message." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on create." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["title", "chatType", "creatorId", "participantUids", "wrappedKeys", "lastMessageCiphertext", "lastMessageIv", "lastMessageType", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "End-to-end encrypted message payload stored inside a chat.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "description": "Parent chat document ID." },
+        "senderId": { "type": "string", "description": "Sender Firebase UID." },
+        "senderName": { "type": "string", "description": "Sender display name." },
+        "participantUids": { "type": "array", "description": "Denormalized list of chat participant UIDs." },
+        "messageType": { "type": "string", "enum": ["text", "image", "location", "youtube", "voice", "call"], "description": "Payload kind." },
+        "ciphertext": { "type": "string", "description": "AES-256-GCM Base64 encrypted JSON payload." },
+        "iv": { "type": "string", "description": "Base64 96-bit GCM IV." },
+        "keyFingerprint": { "type": "string", "description": "Sender key fingerprint." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": ["chatId", "senderId", "senderName", "participantUids", "messageType", "ciphertext", "iv", "keyFingerprint", "createdAt"]
+    },
+    "VoiceCall": {
+      "title": "VoiceCall",
+      "description": "Encrypted voice call signaling session.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "description": "Associated chat ID." },
+        "callerId": { "type": "string", "description": "Caller Firebase UID." },
+        "callerName": { "type": "string", "description": "Caller display name." },
+        "participantUids": { "type": "array", "description": "Participant UIDs." },
+        "status": { "type": "string", "enum": ["ringing", "active", "ended", "declined"], "description": "Call status." },
+        "sasCode": { "type": "string", "description": "Short Authentication String for E2EE call verification." },
+        "durationSeconds": { "type": "integer", "description": "Call duration in seconds." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on create." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["chatId", "callerId", "callerName", "participantUids", "status", "sasCode", "durationSeconds", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Owner-only private user account, PII, and synced preferences."
+    },
+    "/users/{userId}/contacts/{contactId}": {
+      "schema": { "$ref": "#/entities/Contact" },
+      "description": "Owner-only saved contacts with verified public keys."
+    },
+    "/invite_codes/{shareCode}": {
+      "schema": { "$ref": "#/entities/InviteCode" },
+      "description": "Zero-PII lookup by exact share code for adding E2EE contacts."
+    },
+    "/email_directory/{emailHash}": {
+      "schema": { "$ref": "#/entities/DirectoryEntry" },
+      "description": "Zero-PII exact lookup by SHA-256 hash of normalized email address."
+    },
+    "/name_lookup/{nameKey}/members/{memberUid}": {
+      "schema": { "$ref": "#/entities/DirectoryEntry" },
+      "description": "Zero-PII lookup by SHA-256 hash of normalized display name."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "End-to-end encrypted chat rooms scoped to participantUids."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Encrypted messages within a chat room."
+    },
+    "/calls/{callId}": {
+      "schema": { "$ref": "#/entities/VoiceCall" },
+      "description": "Encrypted voice call sessions scoped to participantUids."
+    }
+  }
+}

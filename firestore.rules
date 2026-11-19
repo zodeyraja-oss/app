@@ -1,0 +1,336 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidUidList(uids) {
+      return uids is list &&
+             uids.size() >= 1 &&
+             uids.size() <= 20 &&
+             uids[0] is string &&
+             uids[0].size() >= 1 &&
+             uids[0].size() <= 128;
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+    function isValidUserPrivate(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.email is string && data.email.size() <= 254 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.shareCode is string && data.shareCode.size() >= 4 && data.shareCode.size() <= 32 &&
+             data.publicKeyBase64 is string && data.publicKeyBase64.size() >= 10 && data.publicKeyBase64.size() <= 600 &&
+             data.keyFingerprint is string && data.keyFingerprint.size() >= 8 && data.keyFingerprint.size() <= 128 &&
+             (!('appColor' in data) || (data.appColor is string && data.appColor.size() >= 1 && data.appColor.size() <= 32)) &&
+             (!('chatColor' in data) || (data.chatColor is string && data.chatColor.size() >= 1 && data.chatColor.size() <= 32)) &&
+             (!('themeMode' in data) || data.themeMode in ['SYSTEM', 'DARK', 'LIGHT']) &&
+             (!('highContrast' in data) || data.highContrast is bool) &&
+             (!('textSizePreset' in data) || data.textSizePreset in ['COMFORT', 'LARGE', 'EXTRA_LARGE']) &&
+             (!('easyMode' in data) || data.easyMode is bool) &&
+             (!('ttsVoice' in data) || (data.ttsVoice is string && data.ttsVoice.size() >= 1 && data.ttsVoice.size() <= 32)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidInviteCode(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.publicKeyBase64 is string && data.publicKeyBase64.size() >= 10 && data.publicKeyBase64.size() <= 600 &&
+             data.keyFingerprint is string && data.keyFingerprint.size() >= 8 && data.keyFingerprint.size() <= 128 &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidDirectoryEntry(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.shareCode is string && data.shareCode.size() >= 4 && data.shareCode.size() <= 32 &&
+             data.publicKeyBase64 is string && data.publicKeyBase64.size() >= 10 && data.publicKeyBase64.size() <= 600 &&
+             data.keyFingerprint is string && data.keyFingerprint.size() >= 8 && data.keyFingerprint.size() <= 128 &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidContact(data) {
+      return data.contactUid is string && data.contactUid.size() >= 1 && data.contactUid.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.shareCode is string && data.shareCode.size() >= 4 && data.shareCode.size() <= 32 &&
+             data.publicKeyBase64 is string && data.publicKeyBase64.size() >= 10 && data.publicKeyBase64.size() <= 600 &&
+             data.keyFingerprint is string && data.keyFingerprint.size() >= 8 && data.keyFingerprint.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidChat(data) {
+      return data.title is string && data.title.size() >= 1 && data.title.size() <= 80 &&
+             data.chatType in ['vault', 'direct', 'group'] &&
+             data.creatorId is string && data.creatorId.size() >= 1 && data.creatorId.size() <= 128 &&
+             isValidUidList(data.participantUids) &&
+             data.wrappedKeys is map && data.wrappedKeys.size() >= 1 && data.wrappedKeys.size() <= 20 &&
+             data.lastMessageCiphertext is string && data.lastMessageCiphertext.size() <= 2000 &&
+             data.lastMessageIv is string && data.lastMessageIv.size() <= 128 &&
+             data.lastMessageType in ['none', 'text', 'image', 'location', 'youtube', 'voice', 'call'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMessage(data, expectedChatId) {
+      return data.chatId == expectedChatId &&
+             data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             isValidUidList(data.participantUids) &&
+             data.messageType in ['text', 'image', 'location', 'youtube', 'voice', 'call'] &&
+             data.ciphertext is string && data.ciphertext.size() >= 1 && data.ciphertext.size() <= 750000 &&
+             data.iv is string && data.iv.size() >= 8 && data.iv.size() <= 128 &&
+             data.keyFingerprint is string && data.keyFingerprint.size() >= 8 && data.keyFingerprint.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidCall(data) {
+      return data.chatId is string && data.chatId.size() >= 1 && data.chatId.size() <= 128 &&
+             data.callerId is string && data.callerId.size() >= 1 && data.callerId.size() <= 128 &&
+             data.callerName is string && data.callerName.size() >= 1 && data.callerName.size() <= 80 &&
+             isValidUidList(data.participantUids) &&
+             data.status in ['ringing', 'active', 'ended', 'declined'] &&
+             data.sasCode is string && data.sasCode.size() >= 4 && data.sasCode.size() <= 32 &&
+             data.durationSeconds is int && data.durationSeconds >= 0 && data.durationSeconds <= 86400 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- 1. USERS (Owner-Only Private Account, PII & Google-Synced Preferences) ---
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if isSignedIn() && request.auth.uid == userId;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'email', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'email', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint',
+                         'appColor', 'chatColor', 'themeMode', 'highContrast', 'textSizePreset', 'easyMode', 'ttsVoice',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserPrivate(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserPrivate(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'publicKeyBase64', 'keyFingerprint',
+                         'appColor', 'chatColor', 'themeMode', 'highContrast', 'textSizePreset', 'easyMode', 'ttsVoice',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      // --- 1a. OWNER CONTACTS SUBCOLLECTION ---
+      match /contacts/{contactId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(contactId) && request.auth.uid == userId;
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(contactId) &&
+                         request.auth.uid == userId &&
+                         incoming().keys().hasAll(['contactUid', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'createdAt']) &&
+                         incoming().keys().hasOnly(['contactUid', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'createdAt']) &&
+                         isValidContact(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(userId) &&
+                         isValidId(contactId) &&
+                         request.auth.uid == userId &&
+                         isValidContact(incoming()) &&
+                         incoming().contactUid == existing().contactUid &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'publicKeyBase64', 'keyFingerprint']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(contactId) && request.auth.uid == userId;
+      }
+    }
+
+    // --- 2. INVITE CODES (Exact Lookup Only, Zero PII, No List Scraping) ---
+    match /invite_codes/{shareCode} {
+      allow get: if isSignedIn() && isValidId(shareCode);
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(shareCode) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                       isValidInviteCode(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(shareCode) &&
+                       isValidInviteCode(incoming()) &&
+                       existing().userId == request.auth.uid &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(shareCode) && existing().userId == request.auth.uid;
+    }
+
+    // --- 2a. HASHED EMAIL DIRECTORY (Exact Lookup Only, Zero PII, No List Scraping) ---
+    match /email_directory/{emailHash} {
+      allow get: if isSignedIn() && isValidId(emailHash);
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidId(emailHash) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                       isValidDirectoryEntry(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(emailHash) &&
+                       isValidDirectoryEntry(incoming()) &&
+                       existing().userId == request.auth.uid &&
+                       incoming().userId == existing().userId &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(emailHash) && existing().userId == request.auth.uid;
+    }
+
+    // --- 2b. HASHED NAME DIRECTORY (Exact Normalized Name Lookup Only, Zero PII) ---
+    match /name_lookup/{nameKey} {
+      allow read, write: if false;
+
+      match /members/{memberUid} {
+        allow get: if isSignedIn() && isValidId(nameKey) && isValidId(memberUid);
+        allow list: if isSignedIn() && isValidId(nameKey);
+
+        allow create: if isSignedIn() &&
+                         isValidId(nameKey) &&
+                         isValidId(memberUid) &&
+                         request.auth.uid == memberUid &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']) &&
+                         isValidDirectoryEntry(incoming());
+
+        allow update: if isSignedIn() &&
+                         isValidId(nameKey) &&
+                         isValidId(memberUid) &&
+                         request.auth.uid == memberUid &&
+                         isValidDirectoryEntry(incoming()) &&
+                         existing().userId == request.auth.uid &&
+                         incoming().userId == existing().userId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'shareCode', 'publicKeyBase64', 'keyFingerprint', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(nameKey) && isValidId(memberUid) && request.auth.uid == memberUid;
+      }
+    }
+
+    // --- 3. ENCRYPTED CHATS ---
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && isValidId(chatId) && (request.auth.uid in existing().participantUids);
+      allow list: if isSignedIn() && (request.auth.uid in existing().participantUids);
+
+      allow create: if isSignedIn() &&
+                       isValidId(chatId) &&
+                       incoming().creatorId == request.auth.uid &&
+                       (request.auth.uid in incoming().participantUids) &&
+                       incoming().keys().hasAll(['title', 'chatType', 'creatorId', 'participantUids', 'wrappedKeys', 'lastMessageCiphertext', 'lastMessageIv', 'lastMessageType', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['title', 'chatType', 'creatorId', 'participantUids', 'wrappedKeys', 'lastMessageCiphertext', 'lastMessageIv', 'lastMessageType', 'createdAt', 'updatedAt']) &&
+                       isValidChat(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(chatId) &&
+                       isValidChat(incoming()) &&
+                       (request.auth.uid in existing().participantUids) &&
+                       (request.auth.uid in incoming().participantUids) &&
+                       incoming().creatorId == existing().creatorId &&
+                       incoming().chatType == existing().chatType &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         // Action: Post new message preview update
+                         incoming().diff(existing()).affectedKeys().hasOnly(['lastMessageCiphertext', 'lastMessageIv', 'lastMessageType', 'updatedAt']) ||
+                         // Action: Creator updates title or membership/wrapped keys
+                         (existing().creatorId == request.auth.uid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'participantUids', 'wrappedKeys', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(chatId) && existing().creatorId == request.auth.uid;
+
+      // --- 3a. ENCRYPTED MESSAGES SUBCOLLECTION ---
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(chatId) && isValidId(messageId) && (request.auth.uid in existing().participantUids);
+        allow list: if isSignedIn() && isValidId(chatId) && (request.auth.uid in existing().participantUids);
+
+        allow create: if isSignedIn() &&
+                         isValidId(chatId) &&
+                         isValidId(messageId) &&
+                         incoming().senderId == request.auth.uid &&
+                         (request.auth.uid in incoming().participantUids) &&
+                         incoming().keys().hasAll(['chatId', 'senderId', 'senderName', 'participantUids', 'messageType', 'ciphertext', 'iv', 'keyFingerprint', 'createdAt']) &&
+                         incoming().keys().hasOnly(['chatId', 'senderId', 'senderName', 'participantUids', 'messageType', 'ciphertext', 'iv', 'keyFingerprint', 'createdAt']) &&
+                         isValidMessage(incoming(), chatId) &&
+                         exists(/databases/$(database)/documents/chats/$(chatId)) &&
+                         (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids);
+
+        allow update: if false;
+
+        allow delete: if isSignedIn() && isValidId(chatId) && isValidId(messageId) && existing().senderId == request.auth.uid;
+      }
+    }
+
+    // --- 4. ENCRYPTED VOICE CALLS ---
+    match /calls/{callId} {
+      allow get: if isSignedIn() && isValidId(callId) && (request.auth.uid in existing().participantUids);
+      allow list: if isSignedIn() && (request.auth.uid in existing().participantUids);
+
+      allow create: if isSignedIn() &&
+                       isValidId(callId) &&
+                       incoming().callerId == request.auth.uid &&
+                       (request.auth.uid in incoming().participantUids) &&
+                       incoming().keys().hasAll(['chatId', 'callerId', 'callerName', 'participantUids', 'status', 'sasCode', 'durationSeconds', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['chatId', 'callerId', 'callerName', 'participantUids', 'status', 'sasCode', 'durationSeconds', 'createdAt', 'updatedAt']) &&
+                       isValidCall(incoming()) &&
+                       exists(/databases/$(database)/documents/chats/$(incoming().chatId)) &&
+                       (request.auth.uid in get(/databases/$(database)/documents/chats/$(incoming().chatId)).data.participantUids);
+
+      allow update: if isSignedIn() &&
+                       isValidId(callId) &&
+                       isValidCall(incoming()) &&
+                       (request.auth.uid in existing().participantUids) &&
+                       !(existing().status in ['ended', 'declined']) &&
+                       incoming().callerId == existing().callerId &&
+                       incoming().chatId == existing().chatId &&
+                       incoming().sasCode == existing().sasCode &&
+                       incoming().participantUids == existing().participantUids &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'durationSeconds', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(callId) && existing().callerId == request.auth.uid;
+    }
+  }
+}

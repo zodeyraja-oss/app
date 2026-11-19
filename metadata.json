@@ -1,0 +1,6 @@
+{
+  "name": "KinChat",
+  "description": "End-to-end encrypted messaging, media sharing, voice calls, Google Maps location sharing, privacy-first YouTube player, and Gemini TTS read-aloud with universal accessibility and dark mode.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

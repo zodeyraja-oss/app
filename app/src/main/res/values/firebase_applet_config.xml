@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-kinchat-6e8700ba-fc84-4682-ba61-bbd48c9e851e</string>
+    <string name="recaptcha_site_key" translatable="false">6LdakSYuAAAAAGjytLfvLVuAADnXAy-mIUzxu1Iw</string>
+</resources>
